@@ -7,9 +7,18 @@
 //initialize lcd screen 
 LiquidCrystal lcd(7,8,9,10,11,12);
 
-//port b registers
+//port registers
 volatile unsigned char* myPORTB = (unsigned char*) 0x25; 
-volatile unsigned char* myDDRB  = (unsigned char*) 0x24;  
+volatile unsigned char* myDDRB  = (unsigned char*) 0x24;
+volatile unsigned char* myPINB  = (unsigned char*) 0x23;
+
+volatile unsigned char* myPORTE = (unsigned char*) 0x2E; 
+volatile unsigned char* myDDRE  = (unsigned char*) 0x2D;
+volatile unsigned char* myPINE  = (unsigned char*) 0x2C;
+
+volatile unsigned char* myPORTG = (unsigned char*) 0x34; 
+volatile unsigned char* myDDRG  = (unsigned char*) 0x33;
+volatile unsigned char* myPING  = (unsigned char*) 0x32;
 
  //usart registers
  volatile unsigned char* myUCSR0A = (unsigned char*)0x00C0;
@@ -26,9 +35,26 @@ volatile unsigned char *myTCCR1C = (unsigned char *) 0x82;
 volatile unsigned char *myTIFR1  = (unsigned char *) 0x36;
 volatile unsigned char *myTIMSK1 = (unsigned char *) 0x6F;
 
+void GPIO_setup(){
+  //blue    = pin 5 (PE3)
+  //red  = pin 4 (PG5)
+  //green = pin 3 (PE5)
+  //yellow = pin 2 (PE4)
+
+  *myDDRE = 0b00111000; //pin 5 (PE3), pin 3 (PE5), pin2 (PE4) output
+  *myDDRG = 0b00100000; //pin 4 (PG5) output
+
+  //test pin output
+  *myPORTE = 0b00111000; //pin 5 (PE3), pin 3 (PE5), pin 2 (PE4) HIGH
+  *myPORTG = 0b00100000; //pin 4 (PG5) HIGH
+}
+
 void setup() {
   //setup lcd (columns, rows)
   lcd.begin(16, 2);
+
+  //setup GPIO registers
+  GPIO_setup();
 
   lcd.print("Hello, World!");
 }
