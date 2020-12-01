@@ -1,6 +1,12 @@
 //Team 46: Mason Harlan & Prim Wandeevong
 //swamp-cooler
 
+//included libraries
+#include <LiquidCrystal.h>
+
+//initialize lcd screen 
+LiquidCrystal lcd(7,8,9,10,11,12);
+
 //port b registers
 volatile unsigned char* myPORTB = (unsigned char*) 0x25; 
 volatile unsigned char* myDDRB  = (unsigned char*) 0x24;  
@@ -21,7 +27,10 @@ volatile unsigned char *myTIFR1  = (unsigned char *) 0x36;
 volatile unsigned char *myTIMSK1 = (unsigned char *) 0x6F;
 
 void setup() {
-  
+  //setup lcd (columns, rows)
+  lcd.begin(16, 2);
+
+  lcd.print("Hello, World!");
 }
 
 void loop() {
