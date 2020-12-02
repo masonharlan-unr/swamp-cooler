@@ -36,10 +36,12 @@ volatile unsigned char *myTIFR1  = (unsigned char *) 0x36;
 volatile unsigned char *myTIMSK1 = (unsigned char *) 0x6F;
 
 void GPIO_setup(){
+  //digital pins
   //blue    = pin 5 (PE3)
-  //red  = pin 4 (PG5)
-  //green = pin 3 (PE5)
-  //yellow = pin 2 (PE4)
+  //red     = pin 4 (PG5)
+  //green   = pin 3 (PE5)
+  //yellow  = pin 2 (PE4)
+  //fan     
 
   *myDDRE = 0b00111000; //pin 5 (PE3), pin 3 (PE5), pin2 (PE4) output
   *myDDRG = 0b00100000; //pin 4 (PG5) output
@@ -54,11 +56,19 @@ void setup() {
   lcd.begin(16, 2);
 
   //setup GPIO registers
-  GPIO_setup();
+  //GPIO_setup();
+
+  //test fan on pin 23, 24, 25
+  pinMode(25,OUTPUT);
+  pinMode(23,OUTPUT);
+  pinMode(24,OUTPUT);
+  Serial.begin(9600);
 
   lcd.print("Hello, World!");
 }
 
 void loop() {
-
+   digitalWrite(25,LOW); // enable on=HIGH
+   digitalWrite(23,LOW); //one way
+   digitalWrite(24,HIGH);
 }
