@@ -35,13 +35,47 @@ volatile unsigned char *myTCCR1C = (unsigned char *) 0x82;
 volatile unsigned char *myTIFR1  = (unsigned char *) 0x36;
 volatile unsigned char *myTIMSK1 = (unsigned char *) 0x6F;
 
+//button registers
+volatile unsigned char* myPCMSK1 = (unsigned char *) 0x6C;
+volatile unsigned char* myPCICR  = (unsigned char *) 0x68;
+
+volatile unsigned char* myPORTJ  = (unsigned char *) 0x105;
+volatile unsigned char* myDDRJ   = (unsigned char *) 0x104;
+volatile unsigned char* myPINJ   = (unsigned char *) 0x103;
+
+bool button1 = false;
+bool button2 = false;
+
+ISR (PCINT1_vect){ //to avoid bouncing, perform action on release
+  if (*myPINJ == 1){ 
+    Serial.println("BUTTON 1 Pressed");
+    button1 = true; 
+  } 
+  if (*myPINJ == 2){
+    Serial.println("BUTTON 2 pressed");
+    button2 = true;  
+  }
+  if(*myPINJ == 3){
+    if(button1){
+      Serial.println("BUTTON 1 Released");
+      button1 = false;  
+    }  
+    if(button2){
+      Serial.println("BUTTON 2 Released");
+      button2 = false;  
+    }
+  }
+}
+
 void GPIO_setup(){
   //digital pins
-  //blue    = pin 5 (PE3)
-  //red     = pin 4 (PG5)
-  //green   = pin 3 (PE5)
-  //yellow  = pin 2 (PE4)
-  //fan     
+  //blue     = pin 5 (PE3)
+  //red      = pin 4 (PG5)
+  //green    = pin 3 (PE5)
+  //yellow   = pin 2 (PE4)
+  //fan enb  = pin 25
+  //fan dirb = pin 24
+  //fan dirn = pin 23
 
   *myDDRE = 0b00111000; //pin 5 (PE3), pin 3 (PE5), pin2 (PE4) output
   *myDDRG = 0b00100000; //pin 4 (PG5) output
@@ -56,19 +90,40 @@ void setup() {
   lcd.begin(16, 2);
 
   //setup GPIO registers
-  //GPIO_setup();
+  GPIO_setup();
+
+  //PJ1 = pin 14
+  //PJ0 = pin 15
+  //enable read for port 14 and 15
+  *myDDRJ  = 0b00000000;
+  //enable pullup resistors for pin 14 and 15
+  *myPORTJ = 0b00000011;
+
+  //GPIO interrupts
+  //set PCMSK1 pin 14 (PJ1) PCINT10
+  *myPCMSK1 |= 0b00000100;
+
+  //set PCMSK1 pin 15 (PJ0) PCINT9
+  *myPCMSK1 |= 0b00000010;
+  
+  //set PCIE1
+  *myPCICR |= 0b00000010;
+
+  //set sei
+  sei();
 
   //test fan on pin 23, 24, 25
   pinMode(25,OUTPUT);
   pinMode(23,OUTPUT);
   pinMode(24,OUTPUT);
+  digitalWrite(25,HIGH); // enable on=HIGH
+  digitalWrite(23,LOW); //one way
+  digitalWrite(24,HIGH);
   Serial.begin(9600);
 
   lcd.print("Hello, World!");
 }
 
 void loop() {
-   digitalWrite(25,LOW); // enable on=HIGH
-   digitalWrite(23,LOW); //one way
-   digitalWrite(24,HIGH);
+
 }
