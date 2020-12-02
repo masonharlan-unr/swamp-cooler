@@ -5,16 +5,14 @@ volatile unsigned char* myPORTJ  = (unsigned char *) 0x105;
 volatile unsigned char* myDDRJ   = (unsigned char *) 0x104;
 volatile unsigned char* myPINJ   = (unsigned char *) 0x103;
 
-byte value;
-
 ISR (PCINT1_vect){
-  value = *myPINJ;
-  Serial.println(value);
-  Serial.println("It Worked!");  
+  if ((*myPINJ | 0b11111101) == 0xFF){ //button turns on on release
+    Serial.println(*myPINJ | 0b11111101);
+    Serial.println("It Worked!"); 
+  } 
 }
 
 void setup() {
-  //PJ0 = pin 15
   //PJ1 = pin 14
   *myDDRJ  = 0b00000000;
   *myPORTJ = 0b00000010;
