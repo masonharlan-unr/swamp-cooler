@@ -83,8 +83,12 @@ ISR (PCINT1_vect){ //to avoid bouncing, perform action on release
      //check which button was released
     if(button1){ //on/off button
       if(on){ //if on turn off
-        //stop fan
-        *myPORTA &= 0b11110111;
+        if(running_state){
+          //stop fan
+          *myPORTA &= 0b11110111;
+          //print time stamp
+          off_stamp();
+        }
         //clear display
         clear_lcd();
         //turn yellow LED on and others off
@@ -247,6 +251,32 @@ void error_message(){
   lcd.print("FILL SOON");  
 }
 
+void on_stamp(){
+  Serial.print("Fan ON: ");
+  Serial.print(month());
+  Serial.print("/");
+  Serial.print(day());
+  Serial.print("/");
+  Serial.print(year());
+  Serial.print(" ");
+  Serial.print(hour());
+  Serial.print(":");
+  Serial.println(minute());
+}
+
+void off_stamp(){
+  Serial.print("Fan OFF: ");
+  Serial.print(month());
+  Serial.print("/");
+  Serial.print(day());
+  Serial.print("/");
+  Serial.print(year());
+  Serial.print(" ");
+  Serial.print(hour());
+  Serial.print(":");
+  Serial.println(minute());  
+}
+
 void setup() {
   //setup lcd (columns, rows)
   lcd.begin(16, 2);
@@ -339,6 +369,8 @@ void loop() {
         *myPORTA |= 0b00001000;
         //turn blue LED on and others off
         *myPORTE = 0b00001000;
+        //print time stamp
+        on_stamp();
         //change state to running
         idle_state = false;
         running_state = true;
@@ -349,6 +381,8 @@ void loop() {
         *myPORTA &= 0b11110111;
         //turn green LED on and others off
         *myPORTE = 0b00100000;
+        //print time stamp
+        off_stamp();
         //change state to idle
         running_state = false;
         idle_state = true;  
