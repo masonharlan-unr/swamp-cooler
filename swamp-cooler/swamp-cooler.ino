@@ -9,6 +9,10 @@
 LiquidCrystal lcd(7,8,9,10,11,12);
 
 //port registers
+volatile unsigned char* myPORTA = (unsigned char*) 0x22; 
+volatile unsigned char* myDDRA  = (unsigned char*) 0x21;
+volatile unsigned char* myPINA  = (unsigned char*) 0x20;
+
 volatile unsigned char* myPORTB = (unsigned char*) 0x25; 
 volatile unsigned char* myDDRB  = (unsigned char*) 0x24;
 volatile unsigned char* myPINB  = (unsigned char*) 0x23;
@@ -51,6 +55,7 @@ bool button2 = false;
 int pinDHT11 = 27;
 SimpleDHT11 dht11;
 
+//pin change interrupt 1
 ISR (PCINT1_vect){ //to avoid bouncing, perform action on release
   if (*myPINJ == 1){ 
     Serial.println("BUTTON 1 Pressed");
@@ -72,7 +77,18 @@ ISR (PCINT1_vect){ //to avoid bouncing, perform action on release
   }
 }
 
-void GPIO_setup(){
+//timer 1 overflow interrupt
+ISR (TIMER1_OVF_vect){
+  *myTCCR1B = 0x00; //stop timer          
+  *myTIFR1 |= 0x01; //reset interrupt
+  Serial.println("Overflow vector...");
+
+  *myTCNT1  = (unsigned int) (34286); //set timer value for 2 second delay
+  *myTCCR1B = 0x05; //start timer with prescalar
+}
+
+//setup led registers
+void LED_setup(){
   //digital pins
   //blue     = pin 5 (PE3)
   //red      = pin 4 (PG5)
@@ -82,6 +98,7 @@ void GPIO_setup(){
   //fan dirb = pin 24
   //fan dirn = pin 23
 
+  //set write mode
   *myDDRE = 0b00111000; //pin 5 (PE3), pin 3 (PE5), pin2 (PE4) output
   *myDDRG = 0b00100000; //pin 4 (PG5) output
 
@@ -90,20 +107,18 @@ void GPIO_setup(){
   *myPORTG = 0b00100000; //pin 4 (PG5) HIGH
 }
 
-void setup() {
-  //setup lcd (columns, rows)
-  lcd.begin(16, 2);
-
-  //setup GPIO registers
-  GPIO_setup();
-
-  //PJ1 = pin 14
-  //PJ0 = pin 15
-  //enable read for port 14 and 15
+//setup button input registers
+void button_setup(){
+  //button1 = pin 14 (PJ1)
+  //button2 = pin 15 (PJ0)
+  //enable read for port 14 (PJ1) and 15 (PJ0)
   *myDDRJ  = 0b00000000;
-  //enable pullup resistors for pin 14 and 15
+  //enable pullup resistors for pin 14 (PJ1) and 15 (PJ0)
   *myPORTJ = 0b00000011;
+}
 
+//setup pin change interrupt registers
+void PCINT_setup(){
   //GPIO interrupts
   //set PCMSK1 pin 14 (PJ1) PCINT10
   *myPCMSK1 |= 0b00000100;
@@ -111,19 +126,64 @@ void setup() {
   //set PCMSK1 pin 15 (PJ0) PCINT9
   *myPCMSK1 |= 0b00000010;
   
-  //set PCIE1
+  //set PCIE1 to enable interrupts
   *myPCICR |= 0b00000010;
+}
+
+//setup timer registers and timer interrupt
+void timer_setup(){
+  //enable timer overflow interrupt
+  *myTIMSK1 |= 0b00000001;
+  
+  // init timer control registers
+  *myTCCR1B = 0x00; //stop timer
+  *myTCNT1  = (unsigned int) (34286); //set initial value for 2 second delay
+  
+  *myTCCR1A = 0x00; //normal timer
+  *myTCCR1B = 0x05; //set prescalar to 1024 for 2 second delay and start
+  *myTCCR1C = 0x00; //normal timer
+}
+
+//setup registers for the fan
+void fan_setup(){
+  //on/off = pin 25 (PA3)
+  //dira   = pin 24 (PA2)
+  //dirb   = pin 23 (PA1)
+  
+  //set write mode
+  *myDDRA  |= 0b00001110; //pin 25 (PA3), pin 24 (PA2), pin23 (PA1) output
+
+  //set fan direction
+  *myPORTA |= 0b00000100; //set pin 24 (PA2) HIGH
+  *myPORTA &= 0b11111101; //set pin 23 (PA1) LOW
+  
+  //temp set fan high
+  *myPORTA |= 0b00001000;  
+}
+
+void setup() {
+  //setup lcd (columns, rows)
+  lcd.begin(16, 2);
+
+  //setup LED registers
+  LED_setup();
+
+  //setup button registers
+  button_setup();
+
+  //setup GPIO pin change interrupts
+  PCINT_setup();
+
+  //setup timer1
+  timer_setup();
+
+  //setup fan registers
+  fan_setup();
 
   //set sei
   sei();
 
-  //test fan on pin 23, 24, 25
-  pinMode(25,OUTPUT);
-  pinMode(23,OUTPUT);
-  pinMode(24,OUTPUT);
-  digitalWrite(25,HIGH); // enable on=HIGH
-  digitalWrite(23,LOW); //one way
-  digitalWrite(24,HIGH);
+  //setup serial communications
   Serial.begin(9600);
 }
 
@@ -186,6 +246,3 @@ void loop() {
   // DHT11 sampling rate is 1HZ.
   delay(2000);
 }
-
-
-
