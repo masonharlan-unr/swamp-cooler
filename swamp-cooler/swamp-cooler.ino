@@ -5,7 +5,8 @@
 #include <DS1307RTC.h>
 #include <LiquidCrystal.h>
 #include <SimpleDHT.h>
-#include <Time.h>
+#include <TimeLib.h>
+#include <Wire.h>
 
 //initialize lcd screen 
 LiquidCrystal lcd(7,8,9,10,11,12);
@@ -63,6 +64,12 @@ SimpleDHT11 dht11;
 int water_level_pin = 8;
 int level_history = 0;
 
+//time config
+tmElements_t tm;
+const char *monthName[12] = {
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+};
 
 //super states
 bool on = false;
@@ -261,6 +268,9 @@ void on_stamp(){
   Serial.print(" ");
   Serial.print(hour());
   Serial.print(":");
+  if (minute() < 10){
+    Serial.print("0");  
+  }
   Serial.println(minute());
 }
 
@@ -306,6 +316,9 @@ void setup() {
   Serial.begin(9600);
 
   //setup time
+  if(getDate(__DATE__) && getTime(__TIME__)){
+    RTC.write(tm);
+  }
   setSyncProvider(RTC.get);
 }
 
@@ -314,10 +327,10 @@ void loop() {
     //read water level value
     int water_level = adc_read(water_level_pin);
     //check if value is within history by ten
-    if (((level_history >= water_level) && ((level_history - water_level) > 10)) || ((level_history < water_level) && ((water_level - level_history) > 10)))
+    if (((level_history >= water_level) && ((level_history - water_level) > 5)) || ((level_history < water_level) && ((water_level - level_history) > 5)))
     {
       //if water has been refilled
-      if(error_state && (water_level >= 40)){
+      if(error_state && (water_level >= 100)){
           //turn red LED off and green LED on
           *myPORTE = 0b00100000; 
           *myPORTG = 0b00000000; 
@@ -326,7 +339,7 @@ void loop() {
           idle_state = true;
       }
       //if water is too low then go to error state
-      else if ((!error_state) && (water_level < 40)){
+      else if ((!error_state) && (water_level < 100)){
         //turn off fan
         *myPORTA &= 0b11110111;
         //turn on red LED and other LEDs off
@@ -418,4 +431,32 @@ unsigned int adc_read(unsigned char adc_channel){
   //wait for the conversion to finish
   while((*myADCSRA & 0b01000000) != 0);
   return *myADCDATA; //return the result of the conversion
+}
+
+bool getTime(const char *str)
+{
+  int Hour, Min, Sec;
+
+  if (sscanf(str, "%d:%d:%d", &Hour, &Min, &Sec) != 3) return false;
+  tm.Hour = Hour;
+  tm.Minute = Min;
+  tm.Second = Sec;
+  return true;
+}
+
+bool getDate(const char *str)
+{
+  char Month[12];
+  int Day, Year;
+  uint8_t monthIndex;
+
+  if (sscanf(str, "%s %d %d", Month, &Day, &Year) != 3) return false;
+  for (monthIndex = 0; monthIndex < 12; monthIndex++) {
+    if (strcmp(Month, monthName[monthIndex]) == 0) break;
+  }
+  if (monthIndex >= 12) return false;
+  tm.Day = Day;
+  tm.Month = monthIndex + 1;
+  tm.Year = CalendarYrToTm(Year);
+  return true;
 }
