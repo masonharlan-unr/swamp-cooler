@@ -3,6 +3,7 @@
 
 //included libraries
 #include <LiquidCrystal.h>
+#include <SimpleDHT.h>
 
 //initialize lcd screen 
 LiquidCrystal lcd(7,8,9,10,11,12);
@@ -45,6 +46,10 @@ volatile unsigned char* myPINJ   = (unsigned char *) 0x103;
 
 bool button1 = false;
 bool button2 = false;
+
+//humidity sensor
+int pinDHT11 = 27;
+SimpleDHT11 dht11;
 
 ISR (PCINT1_vect){ //to avoid bouncing, perform action on release
   if (*myPINJ == 1){ 
@@ -120,10 +125,25 @@ void setup() {
   digitalWrite(23,LOW); //one way
   digitalWrite(24,HIGH);
   Serial.begin(9600);
-
-  lcd.print("Hello, World!");
 }
 
 void loop() {
-
+  // read with raw sample data.
+  byte temperature = 0;
+  byte humidity = 0;
+  byte data[40] = {0};
+  dht11.read(pinDHT11, &temperature, &humidity, data);
+  
+  //clear lines first
+  lcd.setCursor(0,0);
+  lcd.print("Temp: ");
+  lcd.print((int) temperature);
+  lcd.print("*C");
+  lcd.setCursor(0,1);
+  lcd.print("Humidity: ");
+  lcd.print((int) humidity);
+  lcd.print("%");
+  
+  // DHT11 sampling rate is 1HZ.
+  delay(2000);
 }
