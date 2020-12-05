@@ -51,6 +51,9 @@ volatile unsigned char* myPINJ   = (unsigned char *) 0x103;
 bool button1 = false;
 bool button2 = false;
 
+//dht11 read ready flag
+bool read_dht11 = false;
+
 //humidity sensor
 int pinDHT11 = 27;
 SimpleDHT11 dht11;
@@ -81,8 +84,9 @@ ISR (PCINT1_vect){ //to avoid bouncing, perform action on release
 ISR (TIMER1_OVF_vect){
   *myTCCR1B = 0x00; //stop timer          
   *myTIFR1 |= 0x01; //reset interrupt
-  Serial.println("Overflow vector...");
 
+  read_dht11 = true;
+  
   *myTCNT1  = (unsigned int) (34286); //set timer value for 2 second delay
   *myTCCR1B = 0x05; //start timer with prescalar
 }
@@ -94,9 +98,6 @@ void LED_setup(){
   //red      = pin 4 (PG5)
   //green    = pin 3 (PE5)
   //yellow   = pin 2 (PE4)
-  //fan enb  = pin 25
-  //fan dirb = pin 24
-  //fan dirn = pin 23
 
   //set write mode
   *myDDRE = 0b00111000; //pin 5 (PE3), pin 3 (PE5), pin2 (PE4) output
@@ -161,6 +162,14 @@ void fan_setup(){
   *myPORTA |= 0b00001000;  
 }
 
+//clear lcd display
+void clear_lcd(){
+  lcd.setCursor(6,0);
+  lcd.print("     ");
+  lcd.setCursor(9,1);
+  lcd.print("     ");
+}
+
 void setup() {
   //setup lcd (columns, rows)
   lcd.begin(16, 2);
@@ -188,21 +197,27 @@ void setup() {
 }
 
 void loop() {
-  // read with raw sample data.
-  byte temperature = 0;
-  byte humidity = 0;
-  byte data[40] = {0};
-  dht11.read(pinDHT11, &temperature, &humidity, data);
-  
-  //clear lines first
-  lcd.setCursor(0,0);
-  lcd.print("Temp: ");
-  lcd.print((int) temperature);
-  lcd.print("*C");
-  lcd.setCursor(0,1);
-  lcd.print("Humidity: ");
-  lcd.print((int) humidity);
-  lcd.print("%");
+  //if dht data ready to update
+  if (read_dht11){
+    byte temperature = 0;
+    byte humidity = 0;
+    byte data[40] = {0};
+
+    //if read is successful, print to lcd screen
+    if (!(dht11.read(pinDHT11, &temperature, &humidity, data))){
+      clear_lcd();
+      lcd.setCursor(0,0);
+      lcd.print("Temp: ");
+      lcd.print((int) temperature);
+      lcd.print("*C");
+      lcd.setCursor(0,1);
+      lcd.print("Humidity: ");
+      lcd.print((int) humidity);
+      lcd.print("%");
+    }
+    //signal dht read
+    read_dht11 = false;
+  }
 
   /***Didn't test this out yet, feel free to correct me!***
   int state = 0;        //0 = disabled, 1 = idle, 2 = running
@@ -242,7 +257,4 @@ void loop() {
     }
   }
   */
-
-  // DHT11 sampling rate is 1HZ.
-  delay(2000);
 }
