@@ -48,8 +48,8 @@ volatile unsigned char* myPORTJ  = (unsigned char *) 0x105;
 volatile unsigned char* myDDRJ   = (unsigned char *) 0x104;
 volatile unsigned char* myPINJ   = (unsigned char *) 0x103;
 
-bool button1 = false;
-bool button2 = false;
+bool button1 = false; //on/off button
+bool button2 = false; //vent position button
 
 //dht11 read ready flag
 bool read_dht11 = false;
@@ -58,22 +58,54 @@ bool read_dht11 = false;
 int pinDHT11 = 27;
 SimpleDHT11 dht11;
 
+//super states
+bool on = false;
+//substates
+bool error_state;
+bool idle_state;
+bool running_state;
+
 //pin change interrupt 1
 ISR (PCINT1_vect){ //to avoid bouncing, perform action on release
-  if (*myPINJ == 1){ 
-    Serial.println("BUTTON 1 Pressed");
+  if (*myPINJ == 1){ //state for on/off button down
     button1 = true; 
   } 
-  if (*myPINJ == 2){
-    Serial.println("BUTTON 2 pressed");
+  if (*myPINJ == 2){ //state for vent position button down
     button2 = true;  
   }
-  if(*myPINJ == 3){
-    if(button1){
-      Serial.println("BUTTON 1 Released");
+  if(*myPINJ == 3){ //this means a button was released
+     //check which button was released
+    if(button1){ //on/off button
+      if(on){ //if on turn off
+        //stop fan
+        *myPORTA &= 0b11110111;
+        //clear display
+        clear_lcd();
+        //turn yellow LED on and others off
+        *myPORTE = 0b00010000; //pin 5 (PE3) LOW, pin 3 (PE5) LOW, pin 2 (PE4) HIGH
+        *myPORTG = 0b00000000; //pin 4 (PG5) LOW
+        //change state to off
+        on = false;
+        running_state = false;
+        idle_state - false;  
+      }
+      else if (error_state){
+        //turn yellow LED off and red LED on
+        *myPORTE = 0b00100000; //pin 2 (PE4) LOW
+        *myPORTG = 0b00100000; //pin 4 (PG5) HIGH
+        //change state to on
+        on = true;
+      }
+      else{ //if off turn on
+        //turn yellow LED off and green LED on
+        *myPORTE = 0b00100000; //pin 2 (PE4) LOW, pin 3 (PE5) HIGH
+        //change state to on
+        on = true;
+        idle_state = true;
+      }
       button1 = false;  
     }  
-    if(button2){
+    if(button2){ //cycle vent position button
       Serial.println("BUTTON 2 Released");
       button2 = false;  
     }
@@ -103,9 +135,12 @@ void LED_setup(){
   *myDDRE = 0b00111000; //pin 5 (PE3), pin 3 (PE5), pin2 (PE4) output
   *myDDRG = 0b00100000; //pin 4 (PG5) output
 
-  //test pin output
-  *myPORTE = 0b00111000; //pin 5 (PE3), pin 3 (PE5), pin 2 (PE4) HIGH
-  *myPORTG = 0b00100000; //pin 4 (PG5) HIGH
+  //starts in off position
+  *myPORTE = 0b00010000; //pin 2 (PE4) HIGH
+
+  //pin output refrence:
+    //*myPORTE = 0b00111000; //pin 5 (PE3), pin 3 (PE5), pin 2 (PE4) HIGH
+    //*myPORTG = 0b00100000; //pin 4 (PG5) HIGH
 }
 
 //setup button input registers
@@ -156,14 +191,19 @@ void fan_setup(){
 
   //set fan direction
   *myPORTA |= 0b00000100; //set pin 24 (PA2) HIGH
-  *myPORTA &= 0b11111101; //set pin 23 (PA1) LOW
-  
-  //temp set fan high
-  *myPORTA |= 0b00001000;  
+  *myPORTA &= 0b11111101; //set pin 23 (PA1) LOW 
 }
 
-//clear lcd display
+//clear lccd completely
 void clear_lcd(){
+  lcd.setCursor(0,0);
+  lcd.print("             ");
+  lcd.setCursor(0,1);
+  lcd.print("             ");
+}
+
+//clear lcd values displayed
+void clear_values_lcd(){
   lcd.setCursor(6,0);
   lcd.print("     ");
   lcd.setCursor(9,1);
@@ -204,8 +244,8 @@ void loop() {
     byte data[40] = {0};
 
     //if read is successful, print to lcd screen
-    if (!(dht11.read(pinDHT11, &temperature, &humidity, data))){
-      clear_lcd();
+    if (!(dht11.read(pinDHT11, &temperature, &humidity, data)) && on){
+      clear_values_lcd();
       lcd.setCursor(0,0);
       lcd.print("Temp: ");
       lcd.print((int) temperature);
@@ -214,8 +254,25 @@ void loop() {
       lcd.print("Humidity: ");
       lcd.print((int) humidity);
       lcd.print("%");
+
+      //check if not already runnning and if temp too high
+      if((!running_state) && (temperature > 20)){
+        //turn fan on
+        *myPORTA |= 0b00001000;
+        //change state to running
+        idle_state = false;
+        running_state = true;
+      }
+      //check if not already idle and if temp too low
+      if((!idle_state) && (temperature <= 20)){
+        //turn fan off
+        *myPORTA &= 0b11110111;
+        //change state to idle
+        running_state = false;
+        idle_state = true;  
+      }
     }
-    //signal dht read
+    //signal that dht was read
     read_dht11 = false;
   }
 
