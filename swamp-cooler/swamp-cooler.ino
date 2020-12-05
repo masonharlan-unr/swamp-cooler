@@ -61,9 +61,9 @@ SimpleDHT11 dht11;
 //super states
 bool on = false;
 //substates
-bool error_state;
-bool idle_state;
-bool running_state;
+bool error_state = false;
+bool idle_state = false;
+bool running_state = false;
 
 //pin change interrupt 1
 ISR (PCINT1_vect){ //to avoid bouncing, perform action on release
@@ -91,14 +91,14 @@ ISR (PCINT1_vect){ //to avoid bouncing, perform action on release
       }
       else if (error_state){
         //turn yellow LED off and red LED on
-        *myPORTE = 0b00100000; //pin 2 (PE4) LOW
+        *myPORTE = 0b00000000; //pin 2 (PE4) LOW
         *myPORTG = 0b00100000; //pin 4 (PG5) HIGH
         //change state to on
         on = true;
       }
       else{ //if off turn on
         //turn yellow LED off and green LED on
-        *myPORTE = 0b00100000; //pin 2 (PE4) LOW, pin 3 (PE5) HIGH
+        *myPORTE = 0b00100000;
         //change state to on
         on = true;
         idle_state = true;
@@ -259,6 +259,8 @@ void loop() {
       if((!running_state) && (temperature > 20)){
         //turn fan on
         *myPORTA |= 0b00001000;
+        //turn blue LED on and others off
+        *myPORTE = 0b00001000;
         //change state to running
         idle_state = false;
         running_state = true;
@@ -267,6 +269,8 @@ void loop() {
       if((!idle_state) && (temperature <= 20)){
         //turn fan off
         *myPORTA &= 0b11110111;
+        //turn green LED on and others off
+        *myPORTE = 0b00100000;
         //change state to idle
         running_state = false;
         idle_state = true;  
