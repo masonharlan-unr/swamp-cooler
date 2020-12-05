@@ -61,7 +61,7 @@ SimpleDHT11 dht11;
 //super states
 bool on = false;
 //substates
-bool error_state = false;
+bool error_state = true;
 bool idle_state = false;
 bool running_state = false;
 
@@ -93,6 +93,8 @@ ISR (PCINT1_vect){ //to avoid bouncing, perform action on release
         //turn yellow LED off and red LED on
         *myPORTE = 0b00000000; //pin 2 (PE4) LOW
         *myPORTG = 0b00100000; //pin 4 (PG5) HIGH
+        //print error message
+        error_message();
         //change state to on
         on = true;
       }
@@ -210,6 +212,14 @@ void clear_values_lcd(){
   lcd.print("     ");
 }
 
+void error_message(){
+  clear_lcd();
+  lcd.setCursor(0,0);
+  lcd.print("LOW WATER");
+  lcd.setCursor(0,1);
+  lcd.print("FILL SOON");  
+}
+
 void setup() {
   //setup lcd (columns, rows)
   lcd.begin(16, 2);
@@ -242,9 +252,9 @@ void loop() {
     byte temperature = 0;
     byte humidity = 0;
     byte data[40] = {0};
-
+    
     //if read is successful, print to lcd screen
-    if (!(dht11.read(pinDHT11, &temperature, &humidity, data)) && on){
+    if (!(dht11.read(pinDHT11, &temperature, &humidity, data)) && on && !error_state){
       clear_values_lcd();
       lcd.setCursor(0,0);
       lcd.print("Temp: ");
@@ -279,43 +289,4 @@ void loop() {
     //signal that dht was read
     read_dht11 = false;
   }
-
-  /***Didn't test this out yet, feel free to correct me!***
-  int state = 0;        //0 = disabled, 1 = idle, 2 = running
-  int direction = 0;    //0 = clockwise, 1 = counter clockwise
-
-  //High temp = fan running
-  if(temperature > 28){
-    digitalWrite(25,HIGH);
-    state = 2;
-  }
-  //Low temp = fan idle
-  else if(temperature < 28){
-    digitalWrite(25, LOW);
-    state = 1;
-  }
-
-  //Button toggle "enable/disable"
-  if (*myPINJ == 1){
-    if(state == 0){
-      state = 1;
-    }
-    else{
-      state = 0;
-    }
-  }
-
-  if (*myPINJ == 2){
-    if(direction == 0){
-      digitalWrite(23,HIGH); //other way
-      digitalWrite(24,LOW);
-      direction = 1;
-    }
-    else{
-      digitalWrite(23,LOW); //original way
-      digitalWrite(24,HIGH);
-      direction = 0;
-    }
-  }
-  */
 }
