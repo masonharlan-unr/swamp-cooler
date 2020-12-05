@@ -2,8 +2,10 @@
 //swamp-cooler
 
 //included libraries
+#include <DS1307RTC.h>
 #include <LiquidCrystal.h>
 #include <SimpleDHT.h>
+#include <Time.h>
 
 //initialize lcd screen 
 LiquidCrystal lcd(7,8,9,10,11,12);
@@ -272,6 +274,9 @@ void setup() {
 
   //setup serial communications
   Serial.begin(9600);
+
+  //setup time
+  setSyncProvider(RTC.get);
 }
 
 void loop() {
