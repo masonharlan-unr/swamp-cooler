@@ -143,7 +143,49 @@ void loop() {
   lcd.print("Humidity: ");
   lcd.print((int) humidity);
   lcd.print("%");
-  
+
+  /***Didn't test this out yet, feel free to correct me!***
+  int state = 0;        //0 = disabled, 1 = idle, 2 = running
+  int direction = 0;    //0 = clockwise, 1 = counter clockwise
+
+  //High temp = fan running
+  if(temperature > 28){
+    digitalWrite(25,HIGH);
+    state = 2;
+  }
+  //Low temp = fan idle
+  else if(temperature < 28){
+    digitalWrite(25, LOW);
+    state = 1;
+  }
+
+  //Button toggle "enable/disable"
+  if (*myPINJ == 1){
+    if(state == 0){
+      state = 1;
+    }
+    else{
+      state = 0;
+    }
+  }
+
+  if (*myPINJ == 2){
+    if(direction == 0){
+      digitalWrite(23,HIGH); //other way
+      digitalWrite(24,LOW);
+      direction = 1;
+    }
+    else{
+      digitalWrite(23,LOW); //original way
+      digitalWrite(24,HIGH);
+      direction = 0;
+    }
+  }
+  */
+
   // DHT11 sampling rate is 1HZ.
   delay(2000);
 }
+
+
+
