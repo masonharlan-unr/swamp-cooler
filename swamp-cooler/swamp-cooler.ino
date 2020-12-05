@@ -25,12 +25,9 @@ volatile unsigned char* myPORTG = (unsigned char*) 0x34;
 volatile unsigned char* myDDRG  = (unsigned char*) 0x33;
 volatile unsigned char* myPING  = (unsigned char*) 0x32;
 
- //usart registers
- volatile unsigned char* myUCSR0A = (unsigned char*)0x00C0;
- volatile unsigned char* myUCSR0B = (unsigned char*)0x00C1;
- volatile unsigned char* myUCSR0C = (unsigned char*)0x00C2;
- volatile unsigned int * myUBRR0  = (unsigned int*) 0x00C4;
- volatile unsigned char* myUDR0   = (unsigned char*)0x00C6;
+volatile unsigned char* myPORTJ  = (unsigned char *) 0x105;
+volatile unsigned char* myDDRJ   = (unsigned char *) 0x104;
+volatile unsigned char* myPINJ   = (unsigned char *) 0x103;
 
 //timer registers
 volatile unsigned int  *myTCNT1  = (unsigned  int *) 0x84;
@@ -40,13 +37,15 @@ volatile unsigned char *myTCCR1C = (unsigned char *) 0x82;
 volatile unsigned char *myTIFR1  = (unsigned char *) 0x36;
 volatile unsigned char *myTIMSK1 = (unsigned char *) 0x6F;
 
-//button registers
+//adc registers for water sensor
+volatile unsigned char* myADCSRA = (unsigned char*) 0x7A;
+volatile unsigned char* myADCSRB = (unsigned char*) 0x7B;
+volatile unsigned char* myADMUX  = (unsigned char*) 0x7C;
+volatile unsigned int* myADCDATA = (unsigned int*)  0x78;
+
+//pin change interrupt registers
 volatile unsigned char* myPCMSK1 = (unsigned char *) 0x6C;
 volatile unsigned char* myPCICR  = (unsigned char *) 0x68;
-
-volatile unsigned char* myPORTJ  = (unsigned char *) 0x105;
-volatile unsigned char* myDDRJ   = (unsigned char *) 0x104;
-volatile unsigned char* myPINJ   = (unsigned char *) 0x103;
 
 bool button1 = false; //on/off button
 bool button2 = false; //vent position button
@@ -58,10 +57,15 @@ bool read_dht11 = false;
 int pinDHT11 = 27;
 SimpleDHT11 dht11;
 
+//water sensor
+int water_level_pin = 8;
+int level_history = 0;
+
+
 //super states
 bool on = false;
 //substates
-bool error_state = true;
+bool error_state = false;
 bool idle_state = false;
 bool running_state = false;
 
@@ -138,11 +142,7 @@ void LED_setup(){
   *myDDRG = 0b00100000; //pin 4 (PG5) output
 
   //starts in off position
-  *myPORTE = 0b00010000; //pin 2 (PE4) HIGH
-
-  //pin output refrence:
-    //*myPORTE = 0b00111000; //pin 5 (PE3), pin 3 (PE5), pin 2 (PE4) HIGH
-    //*myPORTG = 0b00100000; //pin 4 (PG5) HIGH
+  *myPORTE = 0b00010000; //pin 2 (PE4) HIGHH
 }
 
 //setup button input registers
@@ -157,13 +157,9 @@ void button_setup(){
 
 //setup pin change interrupt registers
 void PCINT_setup(){
-  //GPIO interrupts
-  //set PCMSK1 pin 14 (PJ1) PCINT10
-  *myPCMSK1 |= 0b00000100;
-
-  //set PCMSK1 pin 15 (PJ0) PCINT9
-  *myPCMSK1 |= 0b00000010;
-  
+  //digital GPIO interrupts
+  //set PCMSK1 pin 14 (PJ1) PCINT10 and pin 15 (PJ0) PCINT9 
+  *myPCMSK1 |= 0b00000110;  
   //set PCIE1 to enable interrupts
   *myPCICR |= 0b00000010;
 }
@@ -182,6 +178,35 @@ void timer_setup(){
   *myTCCR1C = 0x00; //normal timer
 }
 
+//setup ADC registers for water sensor
+void adc_setup(){
+  //setup A register
+  //set bit 7 to 1 to enable the ADC
+  *myADCSRA |= 0b10000000;
+  //set bit 5 to 0 to disable the ADC trigger mode
+  *myADCSRA &= 0b11011111;
+  //set bit 3 to 0 to disable the ADC interrupt
+  *myADCSRA &= 0b11110111;
+  //clear bits 2-0 to 0 to set rescaler selection to slow reading
+  *myADCSRA &= 0b11111000;
+
+  //setup B register
+  //clear bit 3 to 0 to reset the channel and gain bit
+  *myADCSRB &= 0b11110111;
+  //clear bit 2-0 to 0 to set free running mode
+  *myADCSRB &= 0b11111000;
+
+  //setup the MUX register
+  //clear bit 7 to 0 for AVCC analog refrence
+  *myADMUX  &= 0b01111111;
+  //set bit 6 to 1 for AVCC analog refrencce
+  *myADMUX  |= 0b01000000;
+  //clear bit 5 to 0 for right adjust result
+  *myADMUX  &= 0b11011111;
+  //clear bits 4-0 to 0 to reset the channel and gain bits
+  *myADMUX  &= 0b11100000;
+}
+
 //setup registers for the fan
 void fan_setup(){
   //on/off = pin 25 (PA3)
@@ -196,7 +221,7 @@ void fan_setup(){
   *myPORTA &= 0b11111101; //set pin 23 (PA1) LOW 
 }
 
-//clear lccd completely
+//clear lcd completely
 void clear_lcd(){
   lcd.setCursor(0,0);
   lcd.print("             ");
@@ -227,6 +252,9 @@ void setup() {
   //setup LED registers
   LED_setup();
 
+  //setup adc registers
+  adc_setup();
+
   //setup button registers
   button_setup();
 
@@ -247,6 +275,41 @@ void setup() {
 }
 
 void loop() {
+  if(on){
+    //read water level value
+    int water_level = adc_read(water_level_pin);
+    //check if value is within history by ten
+    if (((level_history >= water_level) && ((level_history - water_level) > 10)) || ((level_history < water_level) && ((water_level - level_history) > 10)))
+    {
+      //if water has been refilled
+      if(error_state && (water_level >= 40)){
+          //turn red LED off and green LED on
+          *myPORTE = 0b00100000; 
+          *myPORTG = 0b00000000; 
+          //change state
+          error_state = false;
+          idle_state = true;
+      }
+      //if water is too low then go to error state
+      else if ((!error_state) && (water_level < 40)){
+        //turn off fan
+        *myPORTA &= 0b11110111;
+        //turn on red LED and other LEDs off
+        *myPORTE = 0b00000000; //pin 2 (PE4) LOW
+        *myPORTG = 0b00100000; //pin 4 (PG5) HIGH
+        //print error message
+        error_message();
+        //change state
+        error_state = true;
+        idle_state = false;
+        running_state = false;
+      }
+      Serial.print("Water level is: ");
+      Serial.println(water_level);
+      level_history = water_level;
+    }
+  }
+  
   //if dht data ready to update
   if (read_dht11){
     byte temperature = 0;
@@ -266,7 +329,7 @@ void loop() {
       lcd.print("%");
 
       //check if not already runnning and if temp too high
-      if((!running_state) && (temperature > 20)){
+      if((!running_state) && (temperature > 25)){
         //turn fan on
         *myPORTA |= 0b00001000;
         //turn blue LED on and others off
@@ -276,7 +339,7 @@ void loop() {
         running_state = true;
       }
       //check if not already idle and if temp too low
-      if((!idle_state) && (temperature <= 20)){
+      if((!idle_state) && (temperature <= 25)){
         //turn fan off
         *myPORTA &= 0b11110111;
         //turn green LED on and others off
@@ -289,4 +352,27 @@ void loop() {
     //signal that dht was read
     read_dht11 = false;
   }
+}
+
+unsigned int adc_read(unsigned char adc_channel){
+  //clear channel selecti0n bits (set 4-0 to 0)
+  *myADMUX  &= 0b11100000;
+  //clear MUX5 (set 3 to 0)
+  *myADCSRB &= 0b11110111;
+
+  //set selection bit(if greater than 7, nned to adjust)
+  if(adc_channel > 7){
+    adc_channel -= 8;
+
+    //set MUX 5 to 0 (set 3 to 0)
+    *myADCSRB |= 0b00001000;
+  }
+  //set the channel selection bit
+  *myADMUX += adc_channel;
+
+  //start the conversion (set 6 to 1)
+  *myADCSRA |= 0b01000000; 
+  //wait for the conversion to finish
+  while((*myADCSRA & 0b01000000) != 0);
+  return *myADCDATA; //return the result of the conversion
 }
