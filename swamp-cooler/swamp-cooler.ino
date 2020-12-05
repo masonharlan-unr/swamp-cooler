@@ -334,13 +334,17 @@ void loop() {
         *myPORTG = 0b00100000; //pin 4 (PG5) HIGH
         //print error message
         error_message();
+        //print time stamp
+        if(running_state){
+          off_stamp();  
+        }
         //change state
         error_state = true;
         idle_state = false;
         running_state = false;
       }
-      Serial.print("Water level is: ");
-      Serial.println(water_level);
+      //Serial.print("Water level is: ");
+      //Serial.println(water_level);
       level_history = water_level;
     }
   }
@@ -364,7 +368,7 @@ void loop() {
       lcd.print("%");
 
       //check if not already runnning and if temp too high
-      if((!running_state) && (temperature > 25)){
+      if((!running_state) && (temperature > 24)){
         //turn fan on
         *myPORTA |= 0b00001000;
         //turn blue LED on and others off
@@ -376,7 +380,7 @@ void loop() {
         running_state = true;
       }
       //check if not already idle and if temp too low
-      if((!idle_state) && (temperature <= 25)){
+      if((!idle_state) && (temperature <= 24)){
         //turn fan off
         *myPORTA &= 0b11110111;
         //turn green LED on and others off
