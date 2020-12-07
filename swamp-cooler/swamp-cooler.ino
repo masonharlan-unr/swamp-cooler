@@ -12,6 +12,10 @@
 //initialize lcd screen 
 LiquidCrystal lcd(7,8,9,10,11,12);
 
+//initialize servo vent
+Servo vent;
+int vent_position = 1;
+
 //port registers
 volatile unsigned char* myPORTA = (unsigned char*) 0x22; 
 volatile unsigned char* myDDRA  = (unsigned char*) 0x21;
@@ -126,8 +130,13 @@ ISR (PCINT1_vect){ //to avoid bouncing, perform action on release
       button1 = false;  
     }  
     if(button2){ //cycle vent position button
-      Serial.println("BUTTON 2 Released");
-      button2 = false;  
+      if(on){
+        vent_position++;
+        vent.write(vent_position * 30);
+        if (vent_position > 3){
+          vent_position = 1;  
+        } 
+      } 
     }
   }
 }
@@ -309,6 +318,10 @@ void setup() {
 
   //setup fan registers
   fan_setup();
+
+  //setup servo for vent on pin 13
+  vent.attach(13);
+  vent.write(30);
 
   //set sei
   sei();
