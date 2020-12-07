@@ -4,6 +4,7 @@
 //included libraries
 #include <DS1307RTC.h>
 #include <LiquidCrystal.h>
+#include <Servo.h>
 #include <SimpleDHT.h>
 #include <TimeLib.h>
 #include <Wire.h>
